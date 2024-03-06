@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏大厅</title>
+    <link rel="stylesheet" href="./css/common.css">
+    <link rel="stylesheet" href="./css/game_hall.css">
+</head>
+<body>
+    <div class="nav">网络五子棋对战游戏</div>
+    <!-- 整个页面的容器元素 -->
+    <div class="container">
+        <!-- 这个 div 在 container 中是处于垂直水平居中这样的位置的 -->
+        <div>
+            <!-- 展示用户信息 -->
+            <div id="screen">
+                <!-- 玩家: 小白 分数: 1860</br>
+                比赛场次: 23 获胜场次: 18 -->
+            </div>
+            <!-- 匹配按钮 -->
+            <div id="match-button">开始匹配</div>
+        </div>
+    </div>
+
+    <script src="./js/jquery.min.js"></script>
+    <script>
+        var ws_url = "ws://" + location.host + "/hall";
+        var ws_hdl = null;
+
+        window.onbeforeunload = function(){
+            ws_hdl.close();
+        }
+        // 按钮有两个状态，停止匹配，正在匹配
+        var button_flag = "stop"; // 默认在停止匹配状态
+        // 点击按钮事件的处理
+        var button_element = document.getElementById("match-button");
+        button_element.onclick = function() {
+            if(button_flag == "stop")
+            {
+                // 1. 点击表示要开始匹配，发送对战匹配请求
+                var req_json = {
+                    optype : "match_start"
+                }
+                ws_hdl.send(JSON.stringify(req_json));
+            }
+            else
+            {
+                // 1. 点击表示要停止匹配，发送停止对战匹配请求
+                var req_json = {
+                    optype : "match_stop"
+                }
+                ws_hdl.send(JSON.stringify(req_json));
+            }
+        }
+
+        function get_userinfo() {
+            $.ajax({
+                url : "/info",
+                type : "get",
+                success : function(res){
+                    var info_html = "<p>用户: " + res.username + " 积分: " + res.socre + 
+                        "</br>比赛场次: " + res.total_count + " 获胜场次: " + res.win_count + "</p>";
+                    var screen_div = document.getElementById("screen");
+                    screen_div.innerHTML = info_html;
+
+                    ws_hdl = new WebSocket(ws_url);
+                    ws_hdl.onopen = ws_onopen;
+                    ws_hdl.onclose = ws_onclose;
+                    ws_hdl.onerror = ws_onerror;
+                    ws_hdl.onmessage = ws_onmessage;
+                },
+                error: function(xhr) {
+                    alert(JSON.stringify(xhr));
+                    location.replace("/login.html");
+                }
+            })
+        }
+        function ws_onopen() {
+            console.log("websocket onopen");
+        }
+        function ws_onclose() {
+            console.log("websocket onclose");
+        }
+        function ws_onerror() {
+            console.log("websocket onerror");
+        }
+        function ws_onmessage(evt) {
+            var resp_json = JSON.parse(evt.data);
+            if(resp_json.result == false)
+            {
+                alert(resp_json.reason);
+                location.replace("/login.html");
+                return;
+            }
+            if(resp_json["optype"] == "hall_ready")
+            {
+                alert("游戏大厅连接建立成功");
+            }
+            else if(resp_json["optype"] == "match_success")
+            {
+                // 对战匹配成功
+                location.replace("/game_room.html");
+            }
+            else if(resp_json["optype"] == "match_start")
+            {
+                console.log("玩家已经加入到匹配队列");
+                button_flag = "start";
+                button_element.innerHTML = "匹配中...点击取消匹配";
+                return;
+            }
+            else if(resp_json["optype"] == "match_stop")
+            {
+                console.log("玩家已经停止匹配");
+                button_flag = "stop";
+                button_element.innerHTML = "开始匹配";
+                return;
+            }
+            else
+            {
+                alert(resp_json.reason);
+                location.replace("/login.html");
+                return;
+            }
+        }
+        get_userinfo();
+    </script>
+</body>
+</html>
